@@ -10,15 +10,16 @@ typedef struct sine_wave {
   int loop_delay;           // animation loop delay
   uint8_t brightness;       // light intensity, 0-255
   uint8_t hue;              // color (based on color wheel, 0-255)
-  uint8_t rotation;         // rate of color rotation
   uint8_t saturation;       // color saturation
+  uint8_t rotation;         // rate of color rotation
   uint8_t frequency;        // width of wave
   uint8_t cutoff;           // width cutoff (lower == longer wave)
   uint8_t bg_color;         // background hue
   uint8_t bg_brightness;    // background brightness
   int8_t velocity;          // wave animation speed
-  bool backwards;         // change animation direction
+  bool backwards;           // change animation direction
 } SineWave;
+
 
 
 // rainbow = {palette, blending, brightness, steps, velocity}
@@ -30,10 +31,9 @@ typedef struct rainbow {
 } Rainbow;
 
 
-// ripple = {0, -1, hue, saturation, bg_color_rotation, brightness, velocity, max_steps}
 typedef struct ripple {
-  int center, hue_step; //0, -1
-  uint8_t hue, max_hue, saturation, bg_color_rotation, brightness, velocity, max_steps; //randomized, MAX, 50, MAX, 10, 16
+  int8_t center, hue_step; //0, -1
+  uint8_t min_hue, max_hue, hue, brightness, saturation, r_delay, max_steps;
 } Ripple;
 
 
@@ -42,8 +42,9 @@ typedef struct color {
   uint8_t hue, saturation, brightness; //MAX, MAX, 0
 } SolidColor;
 
+
 typedef struct stripe {
-  uint8_t width, hue, index;
+  uint8_t index, width, hue, saturation, brightness, hue_delta, velocity;
 } Stripe;
 
 
@@ -54,8 +55,8 @@ typedef struct stripe {
 #define LED_PIN 4         // Data Pin
 #define BUTTON_PIN 5      // Mode selection buttion
 #define NUM_LEDS 28       // Change to reflect the number of LEDs you have
-#define COLOR_ORDER GBR   // Green, Blue, Red
-#define NUM_MODES 4       // Number of different mode programs
+#define COLOR_ORDER BGR   // GBR, RGB, BRG
+#define NUM_MODES 3       // Number of different mode programs
 #define MAX 255           // Max value for many animation parameters
 #define MIN 0             // Min value for many animation parameters
 #define MAX_STEPS 16
@@ -69,25 +70,19 @@ TBlendType current_blending; //color blending profile
  *  ***Initialize animation model structs ****
 
 */
-// sine_wave = {phase, loop_delay, brightness, hue, rotation, saturation, frequency, cutoff, bg_color, bg_brightness, velocity, backwards}
-SineWave sine_wave_1 = {0, 4, 255, 30, 1, 255, 25, 192, 0, 55, 4, 0};
-
-// rainbow = {palette, blending, brightness, steps, velocity}
-Rainbow rainbow_0 = {(CRGBPalette16)RainbowColors_p, LINEARBLEND, 150, 16, 10};
-Rainbow rainbow_1 = {(CRGBPalette16)RainbowColors_p, LINEARBLEND, 150, 25, 30};
-// Excluded faster values
-
-// ripple = {0, -1, hue, max_hue, saturation, bg_color_rotation, brightness, velocity, max_steps}
-// Excluded slower values
-Ripple ripple_1 = {0, -1, 0, 220, 149, 150, 150, 60, 100};
-Ripple ripple_2 = {0, -1, 100, 220, 149, 150, 150, 60, 20};
-
 // color = {hue, saturation, brightness}
 SolidColor color_0 = {150, 200, 150};
+SolidColor color_off = {0, 0, 0};
 
-Stripe stripe_0 = {8, CRGB::Purple, 0};
+// sine_wave = {phase, loop_delay, brightness, hue, rotation, saturation, frequency, cutoff, bg_color, bg_brightness, velocity, backwards}
+SineWave sine_wave_1 = {0, 20, 150, 100, 200, 10, 200, 192, 130, 100, 4, 0};
+SineWave sine_wave_2 = {5, 20, 150, 100, 200, 10, 200, 192, 130, 100, 4, 0};
+SineWave sine_wave_3 = {10, 20, 150, 100, 200, 10, 200, 192, 130, 100, 4, 0};
 
-
+Rainbow rainbow_ripple      = {(CRGBPalette16)RainbowColors_p, LINEARBLEND, 150, 16, 10};
+Ripple fast_purple_ripple   = {0, 1, 100, 220, 0, 150, 200, 30, 5};
+Ripple slow_warm_ripple     = {0, 1, 0, 90, 100, 150, 200, 60, 3};
+Stripe rainbow_stripe       = {0, 8, 50, 200, 100, 5, 40};
 /*
     END MODELS
 */
@@ -108,11 +103,11 @@ void setup() {
 void loop() {
   // If button pressed (signal LOW), prepare to change selected program
   if (digitalRead(BUTTON_PIN) == LOW) {
-    FastLED.clearData();
+    //FastLED.clearData();
     // Waiting for button release
     while (digitalRead(BUTTON_PIN) == LOW) {
-      //FastLED.setBrightness(MIN);
-      //FastLED.show();
+      fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.show();
       delay(100);
     }
 
@@ -124,17 +119,13 @@ void loop() {
 
   switch (ledMode) {
     case 0:
-      animate_stripe(&stripe_0);
-      clear_stripe(&stripe_0);
+      animate_sine_wave(&sine_wave_1);
       break;
     case 1:
-      animate_rainbow(&rainbow_0);
+      animate_sine_wave(&sine_wave_2);
       break;
     case 2:
-      animate_ripple(&ripple_2);
-      break;
-    case 3:
-      animate_rainbow(&rainbow_1);
+      animate_sine_wave(&sine_wave_3);
       break;
   }
 }
@@ -171,7 +162,7 @@ void fill_sine_leds(sine_wave* w) {
   for (int i = 0; i < NUM_LEDS; i++) {
     w->brightness = cubicwave8((i * w->frequency) + w->phase) > w->cutoff ? w->brightness : 0;
 
-    leds[i] = CHSV(w->bg_color, MAX, w->bg_brightness);
+    leds[i] = CHSV(w->bg_color, w->saturation, w->bg_brightness);
     leds[i] += CHSV(w->hue, w->saturation, w->brightness);                               // Assigning hues and brightness to the led array.
   }
   w->bg_color++;
@@ -201,44 +192,43 @@ void FillLEDsFromPaletteColors(rainbow* r, uint8_t color_idx) {
   }
 }
 
-
-
 void animate_ripple(ripple* r) {
   fill_ripple(r);
   show_at_max_brightness_for_power();
-  delay_at_max_brightness_for_power(r->velocity * 2.5);
+  delay_at_max_brightness_for_power(r->r_delay);
 }
 
 void fill_ripple(ripple* r) {
-  r->hue++;
-
-  if (r->hue > r->max_hue) {
-    r->hue = max(r->max_hue - 100, 0);
+  if (r->hue > r->max_hue || r->hue < r->min_hue) {
+    r->hue = random16(r->min_hue, r->max_hue);
   }
 
   for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CHSV(r->hue++, r->saturation, r->bg_color_rotation);  // Rotate background color.
-  }
+    leds[i] = CHSV(r->hue + r->hue_step, r->saturation, r->brightness);  // Rotate background color.
+    FastLED.show();
+    delay(r->r_delay);
 
-  switch (r->hue_step) {
-    case -1:
-      r->center = random(NUM_LEDS);
-      r->hue = random16(MIN, MAX + 1);
-      r->hue_step = 0;
-      break;
-    case 0:
-      leds[r->center] = CHSV(r->hue, r->saturation, r->bg_color_rotation);              // Display the first pixel of the ripple.
-      r->hue_step++;
-      break;
-    case MAX_STEPS:
-      r->hue_step = -1;
-      break;
-    default:
-      leds[wrap(r->center + r->hue_step)] += CHSV(r->hue, r->saturation, r->bg_color_rotation / r->hue_step * 2); // Display the next pixels in the range for one side.
-      leds[wrap(r->center - r->hue_step)] += CHSV(r->hue, r->saturation, r->bg_color_rotation / r->hue_step * 2); // Display the next pixels in the range for the other side.
-      r->hue_step++;
-      break;
+    switch (r->hue_step) {
+      case -1:
+        r->center = random(NUM_LEDS);
+        r->hue = random16(r->min_hue, r->max_hue);
+        r->hue_step = 1;
+        break;
+      case 0:
+        leds[r->center] = CHSV(r->hue++, r->saturation, r->brightness);              // Display the first pixel of the ripple.
+        r->hue_step++;
+        break;
+      case MAX_STEPS:
+        r->hue_step = -1;
+        break;
+      default:
+        leds[wrap(r->center + r->hue_step)] += CHSV(r->hue++, r->saturation, r->brightness); // Display the next pixels in the range for one side.
+        leds[wrap(r->center - r->hue_step)] += CHSV(r->hue++, r->saturation, r->brightness); // Display the next pixels in the range for the other side.
+        r->hue_step++;
+        break;
+    }
   }
+  delay(r->r_delay);
 }
 
 
@@ -252,6 +242,10 @@ int wrap(int step) {
 }
 
 void animate_stripe(stripe* s) {
+  fill_stripes(s);
+}
+
+void color_change_stripe(stripe* s) {
   if (s->width >= NUM_LEDS) {
     s->width = NUM_LEDS - 1;
   }
@@ -261,9 +255,10 @@ void animate_stripe(stripe* s) {
 
 void fill_stripes(stripe* s) {
   int fill_pos, clear_pos;
+
   for (int i = s->index; i < NUM_LEDS; i++) {
-    // i < 0, i in range, i >= NUM_LEDS
     fill_pos = i;
+    s->hue += s->hue_delta;
 
     if (fill_pos > NUM_LEDS) {
       fill_pos -= NUM_LEDS;
@@ -271,35 +266,35 @@ void fill_stripes(stripe* s) {
 
     clear_pos = fill_pos - s->width;
 
-    leds[fill_pos] = s->hue;
+    leds[fill_pos] = CHSV(s->hue, s->saturation, s->brightness);
     FastLED.show();
 
     if (clear_pos >= NUM_LEDS) {
       clear_pos -= NUM_LEDS;
-    } else if(clear_pos < 0) {
+    } else if (clear_pos < 0) {
       clear_pos += NUM_LEDS;
     }
 
-    leds[clear_pos] = CRGB::Black;
-    delay(40);
+    leds[clear_pos] = 0;
+    delay(s->velocity);
   }
 }
 
 void clear_stripe(stripe* s) {
   int clear_pos = s->index - s->width;
 
-  for(int j = 0; j < s->width; j++) {
+  for (int j = 0; j < s->width; j++) {
     if (clear_pos >= NUM_LEDS) {
       clear_pos -= NUM_LEDS;
-    } else if(clear_pos < 0) {
+    } else if (clear_pos < 0) {
       clear_pos += NUM_LEDS;
-    } 
+    }
 
     leds[clear_pos] = CRGB::Black;
     FastLED.show();
     clear_pos++;
-    delay(40);
+    delay(s->velocity);
   }
-  
+
 }
 
