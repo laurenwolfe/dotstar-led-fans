@@ -1,3 +1,5 @@
+#ifndef LED_FAN_ARDUINO
+#define LED_FAN_ARDUINO
 /*
  * Animation Configuration Structs
  */
@@ -39,7 +41,6 @@ typedef struct color {
   uint8_t hue, saturation, brightness; //MAX, MAX, 0
 } SolidColor;
 
-
 /*
  * Environment Constants
  */
@@ -53,7 +54,7 @@ typedef struct color {
 #define MIN 0             // Min value for many animation parameters
 #define MAX_STEPS 16
 
-CRGB leds[NUM_LEDS];      //naming our LED array
-int ledMode = 0;          //Starting animation mode
 TBlendType current_blending; //color blending profile
+SolidColor color0, color1, color2, color3;
 
+#endif /* LED_FAN_ARDUINO */
