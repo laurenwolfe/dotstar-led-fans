@@ -36,7 +36,6 @@ typedef struct ripple {
   uint8_t min_hue, max_hue, hue, brightness, saturation, r_delay, max_steps;
 } Ripple;
 
-
 // color = {hue, saturation, brightness}
 typedef struct color {
   uint8_t hue, saturation, brightness; //MAX, MAX, 0
@@ -54,9 +53,9 @@ typedef struct stripe {
 #define CLOCK_PIN 3       // Clock Pin
 #define LED_PIN 4         // Data Pin
 #define BUTTON_PIN 5      // Mode selection buttion
-#define NUM_LEDS 28       // Change to reflect the number of LEDs you have
+#define NUM_LEDS 46       // Change to reflect the number of LEDs you have
 #define COLOR_ORDER BGR   // GBR, RGB, BRG
-#define NUM_MODES 3       // Number of different mode programs
+#define NUM_MODES 9       // Number of different mode programs
 #define MAX 255           // Max value for many animation parameters
 #define MIN 0             // Min value for many animation parameters
 #define MAX_STEPS 16
@@ -74,15 +73,20 @@ TBlendType current_blending; //color blending profile
 SolidColor color_0 = {150, 200, 150};
 SolidColor color_off = {0, 0, 0};
 
-// sine_wave = {phase, loop_delay, brightness, hue, rotation, saturation, frequency, cutoff, bg_color, bg_brightness, velocity, backwards}
-SineWave sine_wave_1 = {0, 20, 150, 100, 200, 10, 200, 192, 130, 100, 4, 0};
-SineWave sine_wave_2 = {5, 20, 150, 100, 200, 10, 200, 192, 130, 100, 4, 0};
-SineWave sine_wave_3 = {10, 20, 150, 100, 200, 10, 200, 192, 130, 100, 4, 0};
-
+// sine_wave = {phase, loop_delay, brightness, hue, saturation, rotation, frequency, cutoff, bg_color, bg_brightness, velocity, backwards}
+SineWave sine_wave_1 = {25, 5, 150, 30, 200,  5, 100, 192,  90, 150, 100, 1};
+SineWave sine_wave_2 = {25, 10, 150, 70, 200, 20, 10, 192, 150, 150, 25, 0};
+SineWave sine_wave_3 = {25, 100, 150, 150, 200, 30, 25, 192, 210, 150, 50, 1};
 Rainbow rainbow_ripple      = {(CRGBPalette16)RainbowColors_p, LINEARBLEND, 150, 16, 10};
 Ripple fast_purple_ripple   = {0, 1, 100, 220, 0, 150, 200, 30, 5};
 Ripple slow_warm_ripple     = {0, 1, 0, 90, 100, 150, 200, 60, 3};
 Stripe rainbow_stripe       = {0, 8, 50, 200, 100, 5, 40};
+
+// spinning_rainbow();
+// fill_gradient_RGB(leds, NUM_LEDS, 
+// fastLED.show();  
+
+
 /*
     END MODELS
 */
@@ -116,20 +120,44 @@ void loop() {
       ledMode = 0;
     }
   }
-
+/********
+ * 
+ * 
+ * Programs!!!!!!
+ * 
+ */
   switch (ledMode) {
     case 0:
-      animate_sine_wave(&sine_wave_1);
+      animate_stripe(&rainbow_stripe);
       break;
     case 1:
-      animate_sine_wave(&sine_wave_2);
+      animate_sine_wave(&sine_wave_1);
       break;
     case 2:
-      animate_sine_wave(&sine_wave_3);
+      spinning_rainbow();
       break;
+    case 3:
+      animate_ripple(&fast_purple_ripple);
+      break;
+    case 4:
+      animate_sine_wave(&sine_wave_2);
+      break;      
+    case 5:
+      animate_rainbow(&rainbow_ripple);
+      break;      
+    case 6:
+      animate_sine_wave(&sine_wave_3);
+      break;      
+    case 7:
+      animate_ripple(&slow_warm_ripple);
+      break;      
+    case 8:
+      animate_gradient(CRGB(185,43,39), CRGB(21,101,192));
+      break;
+
+//      FastLED.show();
   }
 }
-
 
 /*
    Solid Color Animation
@@ -140,14 +168,14 @@ void animate_color(color* c) {
   FastLED.show();
 }
 
-
 /*
    Sine Wave Animation
 */
 void animate_sine_wave(sine_wave* w) {
   fill_sine_leds(w);
-  show_at_max_brightness_for_power();
-  delay_at_max_brightness_for_power(w->loop_delay * 2.5);
+  FastLED.delay(50);
+  //  show_at_max_brightness_for_power();
+  //  delay_at_max_brightness_for_power(w->loop_delay * 2.5);
 }
 
 void fill_sine_leds(sine_wave* w) {
@@ -164,10 +192,10 @@ void fill_sine_leds(sine_wave* w) {
 
     leds[i] = CHSV(w->bg_color, w->saturation, w->bg_brightness);
     leds[i] += CHSV(w->hue, w->saturation, w->brightness);                               // Assigning hues and brightness to the led array.
+    FastLED.show();
   }
   w->bg_color++;
 }
-
 
 /*
    Rainbow Animation
@@ -206,7 +234,7 @@ void fill_ripple(ripple* r) {
   for (int i = 0; i < NUM_LEDS; i++) {
     leds[i] = CHSV(r->hue + r->hue_step, r->saturation, r->brightness);  // Rotate background color.
     FastLED.show();
-    delay(r->r_delay);
+    FastLED.delay(r->r_delay);
 
     switch (r->hue_step) {
       case -1:
@@ -228,7 +256,7 @@ void fill_ripple(ripple* r) {
         break;
     }
   }
-  delay(r->r_delay);
+  FastLED.delay(r->r_delay);
 }
 
 
@@ -252,6 +280,7 @@ void color_change_stripe(stripe* s) {
 
   fill_stripes(s);
 }
+//  uint8_t index, width, hue, saturation, brightness, hue_delta, velocity;
 
 void fill_stripes(stripe* s) {
   int fill_pos, clear_pos;
@@ -276,7 +305,7 @@ void fill_stripes(stripe* s) {
     }
 
     leds[clear_pos] = 0;
-    delay(s->velocity);
+    FastLED.delay(s->velocity);
   }
 }
 
@@ -293,8 +322,39 @@ void clear_stripe(stripe* s) {
     leds[clear_pos] = CRGB::Black;
     FastLED.show();
     clear_pos++;
-    delay(s->velocity);
+    FastLED.delay(s->velocity);
   }
+}
 
+// show a spinning or scrolling rainbow
+void spinning_rainbow() {
+  // variable used for the initial hue of the rainbow
+  // we start it out at 0
+  // but since it's static, it'll keep it's value as we change it
+  static byte initialHue = 0;
+  
+  // increase the hue by 1 each time
+  initialHue = initialHue + 1;
+  
+  // the amount we want the hue to change between each LED
+  // by dividing the number of hues (255), by the number of LEDs,
+  // this code makes each LED a different color
+  // and covers the entire rainbow spectrum (red, orange, yellow, green, blue, indigo, violet)
+  byte changeInHue = 255 / NUM_LEDS;
+  
+  // use FastLED to fill the LEDs with a rainbow
+  fill_rainbow(leds, NUM_LEDS, initialHue, changeInHue);
+  FastLED.show();
+  FastLED.delay(10);
+}
+
+void animate_gradient(CRGB start_color, CRGB end_color) {
+  for(int i = 0; i < NUM_LEDS * 2; i++) {
+//    fill_gradient_RGB(leds, NUM_LEDS, start_color, end_color);
+    FastLED.show();    
+    start_color += 5;
+    end_color += 5;
+    FastLED.delay(30);
+  }
 }
 
